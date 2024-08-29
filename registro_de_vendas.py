@@ -13,17 +13,55 @@ import tkinter as tk
 import datetime
 from datetime import datetime, timedelta
 from sys import _MEIPASS
+import shutil
 
-global caminho_arquivo
+#global caminho_arquivo
 
 
 # In[8]:
-# Acessa os arquivos txt corretamente no exe
-def get_resource_path(filename):
-    if hasattr(sys, '_MEIPASS'):
+# Acessa os arquivos txt
+def get_resource_path(filename, permanent=False):
+    if hasattr(sys, '_MEIPASS') and not permanent:
+        # Quando empacotado com PyInstaller
         return os.path.join(sys._MEIPASS, filename)
     else:
-        return os.path.join(os.path.dirname(__file__), filename)
+        # Quando em desenvolvimento ou em um script .py
+        #diretorio = os.path.dirname(os.path.abspath(__file__))  # Diretório do script .py
+        #return os.path.join(diretorio, filename)
+    
+        # Diretório onde o script está localizado, ou onde o executável está localizado
+        diretorio = os.path.dirname(sys.executable)  # Diretório do executável
+        #print(f"Diretório do executável: {diretorio}")  # Adicionado para depuração
+        return os.path.join(diretorio, filename)
+
+def inicializar_arquivos():
+    # Lista dos nomes dos arquivos necessários
+    arquivos = ['vendas.txt', 'feriados.txt', 'vendedor.txt', 'vendedor_mes.txt']
+    
+    for arquivo in arquivos:
+        # Caminho do arquivo no diretório do executável
+        caminho_arquivo = get_resource_path(arquivo, permanent=True)
+        
+        # Verifica se o arquivo existe, se não, cria um arquivo vazio
+        if not os.path.exists(caminho_arquivo):
+            try:
+                with open(caminho_arquivo, 'w') as f:
+                    pass  # Cria o arquivo vazio
+                print(f"Arquivo criado: {caminho_arquivo}")
+            except PermissionError as e:
+                print(f"Erro ao criar o arquivo {caminho_arquivo}: {e}")
+
+
+# Chama a função para garantir que os arquivos existam ao iniciar o programa
+inicializar_arquivos() 
+
+
+caminho_arquivo_vendas = get_resource_path('vendas.txt', permanent=True)
+caminho_arquivo_feriados = get_resource_path('feriados.txt', permanent=True)
+caminho_arquivo_vendedor = get_resource_path('vendedor.txt', permanent=True)
+caminho_arquivo_vendedor_mes = get_resource_path('vendedor_mes.txt', permanent=True)
+
+
 
 # In[ ]:
 
@@ -256,9 +294,10 @@ data_venda = registrar_data_hora()  # Variável que chama a função para obter 
 
 def registrar_venda(vendedor, venda):
     # Registra uma venda no arquivo vendas.txt.
-    caminho_arquivo = get_resource_path('vendas.txt')
-    with open(caminho_arquivo, 'a') as arquivo:
-        linha = f"{vendedor.nome.title()},{venda.valor_venda},{data_venda}\n"
+    with open(caminho_arquivo_vendas, 'a') as arquivo:
+        if os.path.getsize(caminho_arquivo_vendas) > 0:
+            arquivo.write('\n')  # Adiciona nova linha apenas se o arquivo não estiver vazio
+        linha = f"{vendedor.nome.title()},{venda.valor_venda},{data_venda}"
         arquivo.write(linha)
 
 
@@ -270,8 +309,7 @@ def registrar_venda(vendedor, venda):
 def buscar_vendas_por_data(data):
     #Busca e exibe vendas registradas em um mês específico no formato 'mm/yyyy'
     mes_ano = data
-    caminho_arquivo = get_resource_path('vendas.txt')
-    with open(caminho_arquivo, 'r') as arquivo:
+    with open(caminho_arquivo_vendas, 'r') as arquivo:
         print(f"\nVendas registradas em {mes_ano}: \n")
         encontrou = False
         for linha in arquivo:
@@ -290,8 +328,7 @@ def buscar_vendas_por_funcionario(nome_vendedor):
     # Busca e exibe vendas registradas para um funcionário específico, permite a busca por nome completo ou parcial
     encontrou = False
     nome_vendedor = nome_vendedor.lower().strip()
-    caminho_arquivo = get_resource_path('vendas.txt')
-    with open(caminho_arquivo, 'r') as arquivo:
+    with open(caminho_arquivo_vendas, 'r') as arquivo:
         print(f"\nVendas registradas para {nome_vendedor.title()}: \n")
         for linha in arquivo:
             nome, valor, data_venda = linha.strip().split(',')
@@ -305,8 +342,7 @@ def buscar_vendas_por_funcionario(nome_vendedor):
 
 def mostrar_todas_as_vendas():
     # Exibe todas as vendas registradas
-    caminho_arquivo = get_resource_path('vendas.txt')
-    with open(caminho_arquivo, 'r') as arquivo:
+    with open(caminho_arquivo_vendas, 'r') as arquivo:
         print("\nTodas as vendas registradas: \n")
         for linha in arquivo:
             nome, valor, data_venda = linha.strip().split(',')
@@ -321,8 +357,7 @@ def calcular_soma_vendas(parcial_nome_vendedor, mes_ano):
     soma_vendas = 0.0
     parcial_nome_vendedor = parcial_nome_vendedor.lower().strip()
 
-    caminho_arquivo = get_resource_path('vendas.txt')
-    with open(caminho_arquivo, 'r') as arquivo:
+    with open(caminho_arquivo_vendas, 'r') as arquivo:
         for linha in arquivo:
             nome, valor, data_venda = linha.strip().split(',')
             nome = nome.lower().strip()
@@ -389,8 +424,7 @@ def validar_data(data, formato='dd/mm/yyyy'):
 
 # valida se o nome do funcionário está registrado no arquivo vendedor.txt
 def validar_nome_funcionario(nome):
-    caminho_arquivo = get_resource_path('vendedor.txt')
-    with open(caminho_arquivo, "r") as arquivo:
+    with open(caminho_arquivo_vendedor, "r") as arquivo:
         for linha in arquivo:
             _, nome_registrado, _ = linha.strip().split(',')
             if nome.strip().title() in nome_registrado.strip().title():
@@ -403,9 +437,8 @@ def validar_nome_funcionario(nome):
 # Puxa o salario bruto do vendedor 
 def salario_vendedor(vendedor_nome):
     vendedor_nome = vendedor_nome.title()
-    
-    caminho_arquivo = get_resource_path('vendedor.txt')
-    with open(caminho_arquivo, 'r') as arquivo:
+
+    with open(caminho_arquivo_vendedor, 'r') as arquivo:
         for linha in arquivo:
             partes = linha.strip().split(',')
             if len(partes) >= 3:  # Verifica se há pelo menos três partes
@@ -422,8 +455,7 @@ def salario_vendedor(vendedor_nome):
 def filtrar_vendas(mes_ano):
     registros_filtrados = []
     
-    caminho_arquivo = get_resource_path('vendas.txt')
-    with open(caminho_arquivo, 'r') as arquivo:
+    with open(caminho_arquivo_vendas, 'r') as arquivo:
         for linha in arquivo:
             nome, valor, data_venda = linha.strip().split(',')
             mes_ano_venda = data_venda[3:10] # Extrai o mês/ano da data da venda
@@ -436,8 +468,7 @@ def filtrar_vendas(mes_ano):
 def filtrar_vendas_por_vendedor_mes(vendedor_nome, mes_ano):
     registros_filtrados = []
     
-    caminho_arquivo = get_resource_path('vendas.txt')
-    with open(caminho_arquivo, 'r') as arquivo:
+    with open(caminho_arquivo_vendas, 'r') as arquivo:
         for linha in arquivo:
             nome, valor, data_venda = linha.strip().split(',')
             mes_ano_venda = data_venda[3:10]  # Extrai o mês/ano da data da venda
@@ -460,8 +491,7 @@ def exportar_vendas_por_nome(nome_arquivo, nome_vendedor):
     registros = []
     nome_vendedor = nome_vendedor.title()
     
-    caminho_arquivo = get_resource_path('vendas.txt')
-    with open(caminho_arquivo, 'r') as arquivo:
+    with open(caminho_arquivo_vendas, 'r') as arquivo:
         for linha in arquivo:
             nome, valor, data_venda = linha.strip().split(',')
             if nome_vendedor in nome.split():
@@ -488,8 +518,7 @@ def exportar_todos_os_registros(nome_arquivo):
         
     registros = []
     
-    caminho_arquivo = get_resource_path('vendas.txt')
-    with open(caminho_arquivo, 'r') as arquivo:
+    with open(caminho_arquivo_vendas, 'r') as arquivo:
         for linha in arquivo:
             nome, valor, data_venda = linha.strip().split(',')
             registros.append((nome, float(valor), data_venda))
@@ -505,8 +534,7 @@ def gerenciar_feriados():
     
     # Lê os feriados existentes
     try:
-        caminho_arquivo = get_resource_path('feriados.txt')
-        with open(caminho_arquivo, 'r') as arquivo:
+        with open(caminho_arquivo_feriados, 'r') as arquivo:
             for linha in arquivo:
                 feriados.add(linha.strip())
     except FileNotFoundError:
@@ -551,8 +579,7 @@ def gerenciar_feriados():
             break
 
     # Grava os feriados no arquivo
-    caminho_arquivo = get_resource_path('feriados.txt')
-    with open(caminho_arquivo, 'w') as arquivo:
+    with open(caminho_arquivo_feriados, 'w') as arquivo:
         for data in sorted(feriados):
             arquivo.write(data + '\n')
 
@@ -561,8 +588,7 @@ def gerenciar_feriados():
 # Retorna um número inteiro de quantos feriados existem no arquivo referente ao mês especificado para uso do DSR    
 def contar_feriados(mes_ano):
     try:
-        caminho_arquivo = get_resource_path('feriados.txt')
-        with open(caminho_arquivo, 'r') as arquivo:
+        with open(caminho_arquivo_feriados, 'r') as arquivo:
             numero_feriados = 0
             for linha in arquivo:
                 data = linha.strip()
@@ -657,8 +683,7 @@ def registrar_relatorio_vendedor():
     vendas_por_vendedor_mes = {}
 
     # Lê o arquivo de vendas e organiza as vendas por vendedor e mês
-    caminho_arquivo = get_resource_path('vendas.txt')
-    with open(caminho_arquivo, 'r') as vendas_file:
+    with open(caminho_arquivo_vendas, 'r') as vendas_file:
         for linha in vendas_file:
             nome, valor, data_venda = linha.strip().split(',')
             mes_ano = data_venda[3:10]  # Extrai o mês/ano da data da venda
@@ -671,8 +696,7 @@ def registrar_relatorio_vendedor():
     # Lê os registros existentes de vendedor_mes.txt e os armazena em um dicionário para facilitar a atualização
     registros_existentes = {}
     try:
-        caminho_arquivo = get_resource_path('vendedor_mes.txt')
-        with open(caminho_arquivo, 'r') as relatorio_file:
+        with open(caminho_arquivo_vendedor_mes, 'r') as relatorio_file:
             for linha in relatorio_file:
                 dados = linha.strip().split(',')
                 vendedor_existente, mes_ano_existente = dados[0], dados[1]
@@ -682,8 +706,7 @@ def registrar_relatorio_vendedor():
         pass
 
     # Abre o arquivo para escrita, o que vai apagar seu conteúdo, e reescreve com atualizações
-    caminho_arquivo = get_resource_path('vendedor_mes.txt')
-    with open(caminho_arquivo, 'w') as relatorio_file:
+    with open(caminho_arquivo_vendedor_mes, 'w') as relatorio_file:
         for (vendedor_nome, mes_ano), _ in vendas_por_vendedor_mes.items():
             relatorio = calcular_relatorio_vendedor(vendedor_nome, mes_ano)
             
@@ -743,15 +766,13 @@ def formatar_registro(dados):
    
 # Mostra todos os registros no arquivo vendedor_mes.txt
 def mostrar_todos():
-    caminho_arquivo = get_resource_path('vendedor_mes.txt')
-    with open(caminho_arquivo, 'r') as arquivo:
+    with open(caminho_arquivo_vendedor_mes, 'r') as arquivo:
         registros = [formatar_registro(linha.strip().split(',')) for linha in arquivo]
     return registros
 
 def filtrar_por_nome(nome):
     # Filtra registros no arquivo vendedor_mes.txt por nome de funcionário
-    caminho_arquivo = get_resource_path('vendedor_mes.txt')
-    with open(caminho_arquivo, 'r') as arquivo:
+    with open(caminho_arquivo_vendedor_mes, 'r') as arquivo:
         registros = [formatar_registro(linha.strip().split(',')) for linha in arquivo if nome.lower() in linha.split(',')[0].lower()]
     return registros
 
@@ -841,7 +862,7 @@ apagar_registros = """Selecione a opção desejada:
 # In[ ]:
 
 def main():
-    while True:       
+    while True:     
 
         opcao = input(menu_inicial)
         
@@ -865,9 +886,10 @@ def main():
             # Formata a data e hora da venda
             data_venda = registrar_data_hora()
             # Registra a venda no arquivo vendas.txt
-            caminho_arquivo = get_resource_path("vendas.txt")
-            with open(caminho_arquivo, "a") as arquivo:
-                arquivo.write(f"{nome_vendedor},{valor_float:.2f},{data_venda}\n")
+            with open(caminho_arquivo_vendas, "a") as arquivo:
+                if os.path.getsize(caminho_arquivo_vendas) > 0:
+                    arquivo.write('\n')  # Adiciona nova linha apenas se o arquivo não estiver vazio
+                arquivo.write(f"{nome_vendedor},{valor_float:.2f},{data_venda}")
             print("Venda registrada com sucesso.")
         
         
@@ -880,6 +902,7 @@ def main():
                 data = input("Digite o mês e ano para a busca (mm/yyyy): ").strip()
                 if validar_data(data, formato='mm/yyyy'):
                     buscar_vendas_por_data(data)
+                    continue
                 else:
                     print("Formato de data inválido. Por favor, insira no formato mm/yyyy.")
                     
@@ -887,15 +910,17 @@ def main():
                 # Buscar vendas por funcionário
                 nome_vendedor = input("Digite o nome do funcionário para a busca: ").strip()
                 buscar_vendas_por_funcionario(nome_vendedor)
+                continue
                 
             elif verificar == "3":
                 # Mostrar todas as vendas registradas
                 mostrar_todas_as_vendas()
+                continue
                 
             elif verificar == "4":
                 # Voltar ao menu anterior
                 print("Voltando ao menu anterior...")
-                break
+                continue
             
             else:
                 print("Opção inválida. Por favor, escolha uma opção válida.")
@@ -960,8 +985,7 @@ def main():
                     registros_restantes = []
                 
                     # Lê o arquivo de vendas e filtra os registros do funcionário
-                    caminho_arquivo = get_resource_path('vendas.txt')
-                    with open(caminho_arquivo, 'r') as arquivo:
+                    with open(caminho_arquivo_vendas, 'r') as arquivo:
                         for linha in arquivo:
                             nome, valor, data_venda = linha.strip().split(',')
                             if nome_funcionario.lower() in nome.lower():
@@ -978,10 +1002,9 @@ def main():
                 
                         if confirmacao == 's':
                             # Sobrescreve o arquivo de vendas com os registros restantes
-                            caminho_arquivo = get_resource_path('vendas.txt')
-                            with open(caminho_arquivo, 'w') as arquivo:
+                            with open(caminho_arquivo_vendas, 'w') as arquivo:
                                 for registro in registros_restantes:
-                                    arquivo.write(registro + '\n')
+                                    arquivo.write(registro + "\n")
                             print("Registros apagados com sucesso.")
                         else:
                             print("Operação cancelada. Nenhum registro foi apagado.")
@@ -1008,8 +1031,7 @@ def main():
                 
                         if confirmacao == 's':
                             # Recria a lista de registros restantes, excluindo os registros filtrados
-                            caminho_arquivo = get_resource_path('vendas.txt')
-                            with open(caminho_arquivo, 'r') as arquivo:
+                            with open(caminho_arquivo_vendas, 'r') as arquivo:
                                 for linha in arquivo:
                                     nome, valor, data_venda = linha.strip().split(',')
                                     mes_ano_venda = data_venda[3:10]
@@ -1017,10 +1039,9 @@ def main():
                                         registros_restantes.append(linha.strip())
                 
                             # Sobrescreve o arquivo de vendas com os registros restantes
-                            caminho_arquivo = get_resource_path('vendas.txt')
-                            with open(caminho_arquivo, 'w') as arquivo:
+                            with open(caminho_arquivo_vendas, 'w') as arquivo:
                                 for registro in registros_restantes:
-                                    arquivo.write(registro + '\n')
+                                    arquivo.write(registro + "\n")
                 
                             print("Registros apagados com sucesso.")
                         else:
@@ -1034,8 +1055,7 @@ def main():
 
                     if confirmacao == 's':
                         # Limpa o arquivo de vendas
-                        caminho_arquivo = get_resource_path('vendas.txt')
-                        open(caminho_arquivo, 'w').close()  # Apaga todo o conteúdo do arquivo
+                        open(caminho_arquivo_vendas, 'w').close()  # Apaga todo o conteúdo do arquivo
 
                         print("Todos os registros foram apagados com sucesso.")
                     else:
@@ -1047,8 +1067,7 @@ def main():
 
                     if confirmacao == 's':
                         # Limpa o arquivo de cálculos mensais dos funcionários
-                        caminho_arquivo = get_resource_path('vendedor_mes.txt')
-                        open(caminho_arquivo, 'w').close()  # Apaga todo o conteúdo do arquivo
+                        open(caminho_arquivo_vendedor_mes, 'w').close()  # Apaga todo o conteúdo do arquivo
 
                         print("Todos os registros foram apagados com sucesso.")
                     else:
@@ -1056,7 +1075,7 @@ def main():
 
     
                 elif apagar == '5': # Voltar ao menu anterior
-                    break
+                    continue
                     
                     
                 else:
@@ -1064,7 +1083,7 @@ def main():
                     
             
             elif importarregistro == '7': # Voltar ao menu anterior
-                break
+                continue
                        
             else:
                 print('Opção inválida. Por favor, escolha uma opção válida.')
@@ -1084,8 +1103,7 @@ def main():
                 cpf_formatado = formatar_cpf(cpf)
                 # Verifica se o CPF já está cadastrado
                 try:
-                    caminho_arquivo = get_resource_path("vendedor.txt")
-                    with open(caminho_arquivo, "r") as arquivo:
+                    with open(caminho_arquivo_vendedor, "r") as arquivo:
                         registros = arquivo.readlines()
                         cpf_existente = any(cpf_formatado in linha for linha in registros)
             
@@ -1123,9 +1141,10 @@ def main():
                 confirmar = input("As informações estão corretas? (s/n): ").strip().lower()
                 if confirmar == 's':
                     # Grava as informações no arquivo vendedor.txt
-                    caminho_arquivo = get_resource_path("vendedor.txt")
-                    with open(caminho_arquivo, "a") as arquivo:
-                        arquivo.write(f"{cpf_formatado},{nome},{salario_bruto:.2f}\n")
+                    with open(caminho_arquivo_vendedor, "a") as arquivo:
+                        if os.path.getsize(caminho_arquivo_vendedor) > 0:
+                            arquivo.write('\n')  # Adiciona nova linha apenas se o arquivo não estiver vazio
+                        arquivo.write(f"{cpf_formatado},{nome},{salario_bruto:.2f}")
                     print("Funcionário cadastrado com sucesso!\n")
                 else:
                     print("Cadastro cancelado. Por favor, insira os dados novamente.\n")
@@ -1141,8 +1160,7 @@ def main():
                 cpf_formatado = formatar_cpf(cpf)
                 # Verifica se o CPF já está cadastrado
                 try:
-                    caminho_arquivo = get_resource_path("vendedor.txt")
-                    with open(caminho_arquivo, "r") as arquivo:
+                    with open(caminho_arquivo_vendedor, "r") as arquivo:
                         registros = arquivo.readlines()
                         cpf_existente = any(cpf_formatado in linha for linha in registros)
             
@@ -1177,8 +1195,7 @@ def main():
                 cpf_formatado = formatar_cpf(cpf)
                 # Verifica se o CPF já está cadastrado e obtém o nome associado
                 try:
-                    caminho_arquivo = get_resource_path("vendedor.txt")
-                    with open(caminho_arquivo, "r") as arquivo:
+                    with open(caminho_arquivo_vendedor, "r") as arquivo:
                         registros = arquivo.readlines()
                         cpf_existente = any(cpf_formatado in linha for linha in registros)
 
@@ -1190,10 +1207,7 @@ def main():
                                     break
 
                             # Remove todas as linhas contendo o nome nos arquivos
-                            caminho_arquivo1 = get_resource_path("vendedor.txt")
-                            caminho_arquivo2 = get_resource_path("vendas.txt")
-                            caminho_arquivo3 = get_resource_path("vendedor_mes.txt")
-                            for arquivo_nome in [caminho_arquivo1, caminho_arquivo2, caminho_arquivo3]:
+                            for arquivo_nome in [caminho_arquivo_vendedor, caminho_arquivo_vendas, caminho_arquivo_vendedor_mes]:
                                 try:
                                     with open(arquivo_nome, "r") as arquivo:
                                         linhas = arquivo.readlines()
@@ -1231,7 +1245,7 @@ def main():
                 
                      
             elif menufuncionario == '5': # Voltar ao menu anterior
-                break
+                continue
                 
             else:
                 print('Opção inválida. Por favor, escolha uma opção válida.')
